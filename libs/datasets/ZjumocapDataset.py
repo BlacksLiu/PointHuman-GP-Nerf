@@ -564,7 +564,85 @@ def build_dataset(cfg, is_train=True):
 
 
 if __name__ == "__main__":
-    from libs.datasets.transform import TrainTransform
-    dataset = ZjumocapDataset(data_root='data/zju_mocap/', split='train', cam_num=3, transform=TrainTransform())
-    dataset.__getitem__(0)
-    print(dataset.__len__())
+    # from libs.datasets.transform import TrainTransform
+    # dataset = ZjumocapDataset(data_root='data/zju_mocap/', split='train', cam_num=3, transform=TrainTransform())
+    # dataset.__getitem__(0)
+    # print(dataset.__len__())
+    import argparse
+
+    def parse_args():
+        parser = argparse.ArgumentParser(description="Digital Human NeRF")
+        parser.add_argument(
+            "--cfg",
+            dest="yaml_file",
+            help="experiment configure file name, e.g. configs/base_config.yaml",
+            required=True,
+            type=str,
+        )
+        # default distributed training
+        parser.add_argument(
+            "--distributed",
+            action="store_true",
+            default=False,
+            help="if use distribute train",
+        )
+
+        parser.add_argument(
+            "--dist-url",
+            dest="dist_url",
+            default="tcp://10.5.38.36:23456",
+            type=str,
+            help="url used to set up distributed training",
+        )
+        parser.add_argument(
+            "--world-size",
+            dest="world_size",
+            default=1,
+            type=int,
+            help="number of nodes for distributed training",
+        )
+        parser.add_argument(
+            "--rank",
+            default=0,
+            type=int,
+            help="node rank for distributed training, machine level",
+        )
+
+        parser.add_argument(
+            "opts",
+            help="Modify config options using the command-line",
+            default=None,
+            nargs=argparse.REMAINDER,
+        )
+        args = parser.parse_args()
+
+        return args
+
+    from configs import cfg, update_config
+
+    args = parse_args()
+    update_config(cfg, args)
+
+    dataset = build_dataset(cfg, is_train=True)
+    data = dataset[0]
+
+    def print_shape(k, x, d=0):
+        if isinstance(x, torch.Tensor):
+            print('\t' * d, k, x.shape, x.dtype)
+        elif isinstance(x, np.ndarray):
+            print('\t' * d, k, x.shape, x.dtype)
+        elif isinstance(x, dict):
+            print('\t' * d, '{} = {}'.format(k, '{'))
+            for k2 in x:
+                print_shape(k2, x[k2], d+1)
+            print('\t' * d, '}')
+        elif isinstance(x, tuple):
+            print('\t' * d, '(')
+            for k2 in x:
+                print_shape(k2, x[k2], d+1)
+            print('\t' * d,')')
+        else:
+            print('\t' * d, k, x)
+        
+    for k in data:
+        print_shape(k, data[k])

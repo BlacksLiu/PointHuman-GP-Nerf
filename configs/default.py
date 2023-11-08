@@ -39,6 +39,8 @@ cfg.dataset.voxel_size = [0.005, 0.005, 0.005]
 cfg.dataset.train = CN()
 cfg.dataset.train.name = 'thuman'
 cfg.dataset.train.data_root = 'data/thuman/'
+cfg.dataset.train.render_root = 'thuman2_perspective_nolight_36views'
+cfg.dataset.train.ratio = 1.
 cfg.dataset.train.file = 'CustomDataset'
 cfg.dataset.train.dataset_cams = 24
 cfg.dataset.train.sampler = ''
@@ -50,9 +52,27 @@ cfg.dataset.train.seq_list = []
 cfg.dataset.train.interval = 1
 cfg.dataset.train.chunk = 400
 
+cfg.dataset.val = CN()
+cfg.dataset.val.name = 'zju_mocap'
+cfg.dataset.val.data_root = 'data/zju_mocap/'
+cfg.dataset.val.render_root = 'thuman2_perspective_nolight_36views'
+cfg.dataset.val.ratio = 1.
+cfg.dataset.val.file = 'ZjumocapDataset'
+cfg.dataset.val.dataset_cams = 24
+cfg.dataset.val.sampler = ''
+cfg.dataset.val.batch_sampler = 'default'
+cfg.dataset.val.sampler_meta = CN({'min_hw': [480, 640], 'max_hw': [480, 640], 'strategy': 'origin'})
+cfg.dataset.val.drop_last = False
+cfg.dataset.val.shuffle = False
+cfg.dataset.val.seq_list = ['CoreView_315',]
+cfg.dataset.val.interval = 7
+cfg.dataset.val.chunk = 2000
+
 cfg.dataset.test = CN()
 cfg.dataset.test.name = 'zju_mocap'
 cfg.dataset.test.data_root = 'data/zju_mocap/'
+cfg.dataset.test.render_root = 'thuman2_perspective_nolight_36views'
+cfg.dataset.test.ratio = 1.
 cfg.dataset.test.file = 'ZjumocapDataset'
 cfg.dataset.test.dataset_cams = 24
 cfg.dataset.test.sampler = ''
@@ -87,7 +107,7 @@ cfg.head.sigma = CN()
 cfg.head.sigma.code_dim = 16
 cfg.head.sigma.n_heads = 4
 cfg.head.sigma.n_layers = 4
-cfg.head.sigma.n_smpl = 6890
+cfg.head.sigma.n_smpl = 10475
 cfg.head.sigma.outdims = [32, 32, 32, 32]
 
 

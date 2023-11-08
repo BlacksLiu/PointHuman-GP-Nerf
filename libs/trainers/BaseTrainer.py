@@ -7,6 +7,9 @@ import os
 import sys
 import time
 from tqdm import tqdm
+import os.path as osp
+import imageio
+from PIL import Image
 
 import torch
 from torch import autograd
@@ -87,13 +90,18 @@ class Trainer(object):
             logging.info(f"max epochs = {self.max_epoch} ")
 
     def _read_inputs(self, batch):
+        def to(x):
+            if torch.is_tensor(x):
+                return x.to(self.device)
+            else:
+                return x
         for k in batch:
             if isinstance(batch[k], tuple) or isinstance(batch[k], list):
-                batch[k] = [b.to(self.device) for b in batch[k]]
+                batch[k] = [to(b) for b in batch[k]]
             if isinstance(batch[k], dict):
-                batch[k] = {key: value.to(self.device) for key, value in batch[k].items()}
+                batch[k] = {key: to(value) for key, value in batch[k].items()}
             else:
-                batch[k] = batch[k].to(self.device)
+                batch[k] = to(batch[k])
         return batch
 
     def _forward(self, data):
@@ -241,6 +249,7 @@ class Trainer(object):
             for k, v in image_stats.items():
                 if v.shape[0] == 3:
                     v = np.transpose(v, (1, 2, 0))
+                print(k, v.shape, type(v), v.dtype)
                 self.writer.add_image(pattern.format(k), v, log_stats['iter'])
 
         rgb_loss, mse, psnr, ssim = val_stats['rgb_loss'], val_stats['mse'], val_stats['psnr'], val_stats['ssim']
@@ -277,6 +286,67 @@ class Trainer(object):
             count += 1
         if self.cfg.head.rgb.use_rgbhead:
             self.evaluator.summarize()
+        print(f'avg total render time: {total_time / count}s per sample',)
+    
+    def evaluate_pointhuman(self, eval_loader, result_path, is_vis=False):
+        self.render.eval()
+        count = 0
+        H, W = int(self.cfg.dataset.H * self.cfg.dataset.ratio), \
+             int(self.cfg.dataset.W * self.cfg.dataset.ratio)
+        if not os.path.exists(result_path):
+            os.makedirs(result_path)
+        
+        video_writter = None
+        last_output_folder = None
+        total_time = 0.0
+        for data in tqdm(eval_loader):
+            with torch.no_grad():
+                val_data = self._read_inputs(data)
+                ret = self.render.module.render(val_data)
+                batch = val_data
+                pred = ret
+                scan_id = val_data['scan_id'][0]
+                ref_views = val_data['ref_views'][0]
+                tgt_view = val_data['tgt_view'][0]
+
+                mask_at_box = batch['mask_at_box'][0].detach().cpu().numpy()
+                mask_at_box = mask_at_box.reshape(H, W)
+                if 'pred_img' not in pred.keys():
+                    pred_img = np.zeros((H, W, 3))
+                    pred_img[mask_at_box] = pred['rgb_map'][0][..., :3].detach().cpu().numpy()
+                else:
+                    pred_img = pred['pred_img']
+                gt_img = np.zeros((H, W, 3))
+                gt_img[mask_at_box] = batch['rgb'][0][..., :3].detach().cpu().numpy()
+
+                target_img = gt_img
+                render_img = pred_img
+
+                output_folder = osp.join(result_path, scan_id, ref_views)
+                if last_output_folder != output_folder:
+                    if video_writter is not None:
+                        video_writter.close()
+                    os.makedirs(output_folder, exist_ok=True)
+                    # video_path = osp.join(
+                    #     "/home/pengfei",
+                    #     output_folder, f"{tgt_view}.mp4")
+                    # os.makedirs(osp.dirname(video_path), exist_ok=True)
+
+                    video_path = osp.join(
+                        output_folder, f"{tgt_view}.mp4")
+                    video_writter = imageio.get_writer(
+                        video_path, fps=5)
+                    last_output_folder = output_folder
+
+                result_img = np.concatenate([target_img, render_img], axis=1)
+                result_img = (result_img * 255).astype(np.uint8)
+                Image.fromarray(result_img, "RGB").save(
+                    osp.join(output_folder, f"{tgt_view}.png"))
+                video_writter.append_data(result_img)
+
+            total_time += ret["rtime"]
+            count += 1
+
         print(f'avg total render time: {total_time / count}s per sample',)
 
 

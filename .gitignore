@@ -140,3 +140,9 @@ logs*/
 outputs/
 work_dirs/
 results/
+
+cmake*
+spconv
+logs/**
+work_dirs/**
+backup/**

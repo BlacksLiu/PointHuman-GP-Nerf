@@ -1,0 +1,8 @@
+
+env: gpnerf
+train command:
+CUDA_VISIBLE_DEVICES=0 python tools/train.py --cfg configs/train_thuman2.yaml
+
+test command:
+modify dataset in pointhuman_dataset.build_dataset
+CUDA_VISIBLE_DEVICES=2 python tools/inference.py --cfg configs/train_thuman2.yaml render.resume_path ./logs/pointhuman/pointhuman/model_best.pth   dataset.test.shuffle False render.file 'demo_render'

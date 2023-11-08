@@ -7,7 +7,8 @@ def clear_msk_noise(msk, tag):
     flag_msk = msk.copy()
     flag_msk[msk!=tag] = 0
     flag_msk[msk==tag] = 1
-    _, contours, hierarchy = cv2.findContours(flag_msk, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)    
+    # _, contours, hierarchy = cv2.findContours(flag_msk, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)    
+    contours, hierarchy = cv2.findContours(flag_msk, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)    
     for ci in range(len(contours)):
         area = cv2.contourArea(contours[ci])
         if area == 0:
@@ -250,6 +251,102 @@ def project(xyz, K, RT):
     return xy
 
 
+def sample_ray_pointhuman(img, msk, K, R, T, bounds, nrays, split, body_sample_ratio):
+    H, W = img.shape[:2]
+    ray_o, ray_d = get_rays(H, W, K, R, T)
+
+    pose = np.concatenate([R, T.reshape(-1, 1)], axis=1)
+    bound_mask = get_bound_2d_mask(bounds, K, pose, H, W)
+
+    # img[bound_mask != 1] = 0
+    # if len(msk.shape) == 3:
+    #     msk = msk[..., 0]
+    msk = msk * bound_mask
+    # bound_mask[msk == 100] = 0
+    if split != 'test':
+        nsampled_rays = 0
+        body_sample_ratio = body_sample_ratio
+        ray_o_list = []
+        ray_d_list = []
+        rgb_list = []
+        near_list = []
+        far_list = []
+        coord_list = []
+        mask_at_box_list = []
+        body_msk_list = []
+        index_list = set()
+
+        while nsampled_rays < nrays:
+            # sample rays on body
+            body_msk = msk
+            coord_body = np.argwhere(body_msk == 1)
+            n_body = int((nrays - nsampled_rays) * body_sample_ratio)
+            n_rand = (nrays - nsampled_rays) - n_body
+            
+            if len(coord_body) > 0:
+                coord_body = coord_body[np.random.randint(0, len(coord_body), n_body)]
+            # sample rays in the bound mask
+            coord = np.argwhere(bound_mask == 1)
+            coord = coord[np.random.randint(0, len(coord), n_rand)]
+            if len(coord_body) > 0:
+                coord = np.concatenate([coord_body, coord], axis=0)
+
+            cur_set = set(list(coord[:, 1] * W + coord[:, 0]))
+            new_set = cur_set - index_list
+            no_repeat_indexs = np.array([index for index in new_set], dtype=np.int)
+            coord = coord[:len(no_repeat_indexs)]
+            coord[:, 0] = no_repeat_indexs % W
+            coord[:, 1] = no_repeat_indexs / W
+            index_list.update(new_set)
+            
+            ray_o_ = ray_o[coord[:, 0], coord[:, 1]]
+            ray_d_ = ray_d[coord[:, 0], coord[:, 1]]
+            rgb_ = img[coord[:, 0], coord[:, 1]]
+
+            out_body_msk = body_msk.copy()
+            out_body_msk[out_body_msk>0] = 1
+            msk_ = out_body_msk[coord[:, 0], coord[:, 1]]
+
+            near_, far_, mask_at_box = get_near_far(bounds, ray_o_, ray_d_)
+
+            ray_o_list.append(ray_o_[mask_at_box])
+            ray_d_list.append(ray_d_[mask_at_box])
+            rgb_list.append(rgb_[mask_at_box])
+            body_msk_list.append(msk_[mask_at_box])
+            near_list.append(near_)
+            far_list.append(far_)
+            coord_list.append(coord[mask_at_box])
+            mask_at_box_list.append(mask_at_box[mask_at_box])
+            nsampled_rays += len(near_)
+
+        ray_o = np.concatenate(ray_o_list).astype(np.float32)
+        ray_d = np.concatenate(ray_d_list).astype(np.float32)
+        rgb = np.concatenate(rgb_list).astype(np.float32)
+        out_body_msk = np.concatenate(body_msk_list).astype(np.float32)
+        near = np.concatenate(near_list).astype(np.float32)
+        far = np.concatenate(far_list).astype(np.float32)
+        coord = np.concatenate(coord_list)
+        mask_at_box = np.concatenate(mask_at_box_list)
+    else:
+        body_msk = clear_msk_noise(msk, 1)
+        rgb = img.reshape(-1, img.shape[-1]).astype(np.float32)
+        ray_o = ray_o.reshape(-1, 3).astype(np.float32)
+        ray_d = ray_d.reshape(-1, 3).astype(np.float32)
+        near, far, mask_at_box = get_near_far(bounds, ray_o, ray_d)
+        near = near.astype(np.float32)
+        far = far.astype(np.float32)
+
+        out_body_msk = body_msk.copy()
+        out_body_msk[out_body_msk>0] = 1
+        out_body_msk = out_body_msk.reshape(-1)[mask_at_box]
+        rgb = rgb[mask_at_box]
+        ray_o = ray_o[mask_at_box]
+        ray_d = ray_d[mask_at_box]
+        coord = np.zeros([len(rgb), 2]).astype(np.int64)
+
+    return rgb, ray_o, ray_d, near, far, coord, mask_at_box, out_body_msk
+
+
 def sample_ray(img, msk, K, R, T, bounds, nrays, split, body_sample_ratio):
     H, W = img.shape[:2]
     ray_o, ray_d = get_rays(H, W, K, R, T)
@@ -262,7 +359,7 @@ def sample_ray(img, msk, K, R, T, bounds, nrays, split, body_sample_ratio):
         msk = msk[..., 0]
     msk = msk * bound_mask
     bound_mask[msk == 100] = 0
-    if split != 'test':
+    if split == 'train':
         nsampled_rays = 0
         body_sample_ratio = body_sample_ratio
         ray_o_list = []

@@ -120,7 +120,8 @@ class Renderer(nn.Module):
         torch.cuda.synchronize()
         start_time = time.time()
 
-        code = self.nerfhead.sigmahead.c(torch.arange(0, 6890).to(device))
+        code = self.nerfhead.sigmahead.c(
+            torch.arange(0, self.nerfhead.sigmahead.n_smpl).to(device))
 
         torch.cuda.synchronize()
         bc_time = time.time() - start_time
@@ -638,11 +639,12 @@ def build_render(cfg):
     # build nerfhead
     nerfhead = getattr(impm(cfg.head.file), "build_head")(cfg)
 
-    if "thuman" in cfg.dataset.train.name:
+    # PointHuman dataset use zju_mocap format, so, neg_ray_train should be false
+    if "thuman" == cfg.dataset.train.name:
         neg_ray_train = True
     else:
         neg_ray_train = False
-    if "thuman" in cfg.dataset.test.name:
+    if "thuman" == cfg.dataset.test.name:
         neg_ray_val = True
     else:
         neg_ray_val = False

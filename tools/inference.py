@@ -72,10 +72,14 @@ def main_per_worker():
         if "state_dict" in checkpoint:
             model.module.load_state_dict(checkpoint["state_dict"], strict=True)
             print(f"==> model pretrained from {resume_path}")
+        else:
+            model.module.load_state_dict(checkpoint, strict=True)
+            print(f"==> model pretrained from {resume_path}")
+            
 
     # get datset
     eval_dataset = getattr(impm(cfg.dataset.test.file), "build_dataset")(
-        cfg, is_train=False
+        cfg, is_train=False, is_val=False, is_test=True
     )
     eval_sampler = build_batchsampler(cfg, eval_dataset, False, 1, is_train=False)
     eval_loader = torch.utils.data.DataLoader(
@@ -102,7 +106,8 @@ def main_per_worker():
     )
     print(f"==> start eval...")
 
-    Trainer.evaluate(eval_loader, result_path, is_vis=cfg.test.is_vis)
+    # Trainer.evaluate(eval_loader, result_path, is_vis=cfg.test.is_vis)
+    Trainer.evaluate_pointhuman(eval_loader, result_path, is_vis=cfg.test.is_vis)
 
 
 if __name__ == "__main__":

@@ -370,11 +370,11 @@ def build_render(cfg):
     # build nerfhead
     nerfhead = getattr(impm(cfg.head.file), 'build_head')(cfg)
 
-    if 'thuman' in cfg.dataset.train.name:
+    if 'thuman' == cfg.dataset.train.name:
         neg_ray_train = True
     else:
         neg_ray_train = False
-    if 'thuman' in cfg.dataset.test.name:
+    if 'thuman' == cfg.dataset.test.name:
         neg_ray_val = True
     else:
         neg_ray_val = False

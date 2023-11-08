@@ -174,8 +174,8 @@ def main_per_worker():
     train_dataset = getattr(impm(cfg.dataset.train.file), "build_dataset")(
         cfg, is_train=True
     )
-    eval_dataset = getattr(impm(cfg.dataset.test.file), "build_dataset")(
-        cfg, is_train=False
+    eval_dataset = getattr(impm(cfg.dataset.val.file), "build_dataset")(
+        cfg, is_train=False, is_val=True
     )
 
     train_sampler = build_batchsampler(

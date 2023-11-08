@@ -17,7 +17,7 @@ def weights_init(m):
             nn.init.zeros_(m.bias.data)
 
 
-@torch.jit.script
+# @torch.jit.script
 def fused_mean_variance(x):
     mean = x.mean(-2).unsqueeze(-2)
     var = torch.mean((x - mean)**2, dim=2, keepdim=True)
@@ -39,13 +39,14 @@ class NeRFSigmaHead(nn.Module):
         self.out_geometry_fc = nn.Sequential(nn.Linear(sum(spconv_out_dim), 64),
                                              nn.ELU(inplace=True),)
         self.out_geometry_fc.apply(weights_init)
+        self.n_smpl = n_smpl
 
     def forward(self, sp_input, grid_coords, smpl_feat_sampled, mask):
         coord = sp_input['coord']
         out_sh = sp_input['out_sh']
         batch_size = sp_input['batch_size']
 
-        code = self.c(torch.arange(0, 6890).to(grid_coords.device))
+        code = self.c(torch.arange(0, self.n_smpl).to(grid_coords.device))
         code_query = code.unsqueeze(1)
         smpl_feat_sampled = smpl_feat_sampled.flatten(0, 1)
         xyzc_fuse = self.xyzc_attn(code_query, smpl_feat_sampled, smpl_feat_sampled)[0].squeeze(1)
